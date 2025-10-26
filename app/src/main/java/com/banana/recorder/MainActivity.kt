@@ -44,19 +44,11 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val allGranted = permissions.values.all { it }
+        permissionsGranted.value = allGranted
         if (allGranted) {
-            permissionsGranted.value = true
             loadRecordings()
-        } else {
-            // Some permissions denied - guide user to settings
-            if (shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)) {
-                // User denied but didn't check "Don't ask again"
-                // Can show explanation and request again
-            } else {
-                // User checked "Don't ask again" - guide to settings
-                openAppSettings()
-            }
         }
+        // Don't open settings automatically - user can try again from onboarding screen
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

@@ -11,7 +11,6 @@ object PermissionUtils {
     fun getRequiredPermissions(): Array<String> {
         val permissions = mutableListOf(
             Manifest.permission.READ_PHONE_STATE,
-            Manifest.permission.READ_CALL_LOG,
             Manifest.permission.RECORD_AUDIO,
             Manifest.permission.READ_CONTACTS
         )
@@ -20,9 +19,7 @@ object PermissionUtils {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            permissions.add(Manifest.permission.MANAGE_EXTERNAL_STORAGE)
-        } else {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
@@ -31,8 +28,13 @@ object PermissionUtils {
     }
 
     fun hasAllPermissions(context: Context): Boolean {
-        return getRequiredPermissions().all { permission ->
+        // Check regular permissions
+        val regularPermissions = getRequiredPermissions().all { permission ->
             ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
         }
+        
+        // For Android 11+, we don't require MANAGE_EXTERNAL_STORAGE
+        // We'll use app-specific storage instead
+        return regularPermissions
     }
 }
