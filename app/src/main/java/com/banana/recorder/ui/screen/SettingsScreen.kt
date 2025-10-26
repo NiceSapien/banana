@@ -18,7 +18,8 @@ import com.banana.recorder.model.RecordingSettings
 fun SettingsScreen(
     settings: RecordingSettings,
     onSettingsChange: (RecordingSettings) -> Unit,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    onSelectContactsClick: () -> Unit = {}
 ) {
     Scaffold(
         topBar = {
@@ -47,9 +48,11 @@ fun SettingsScreen(
             // Recording Mode Section
             RecordingModeSection(
                 selectedMode = settings.mode,
+                selectedContactsCount = settings.selectedContactIds.size,
                 onModeChange = { mode ->
                     onSettingsChange(settings.copy(mode = mode))
-                }
+                },
+                onSelectContactsClick = onSelectContactsClick
             )
 
             Divider()
@@ -96,7 +99,9 @@ fun SettingsScreen(
 @Composable
 fun RecordingModeSection(
     selectedMode: RecordingMode,
-    onModeChange: (RecordingMode) -> Unit
+    selectedContactsCount: Int,
+    onModeChange: (RecordingMode) -> Unit,
+    onSelectContactsClick: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -124,6 +129,23 @@ fun RecordingModeSection(
                         RecordingMode.UNKNOWN_AND_SPECIFIC -> "Record from Unknown & Specific Contacts"
                     },
                     style = MaterialTheme.typography.bodyLarge
+                )
+            }
+        }
+        
+        // Show contact selection button for relevant modes
+        if (selectedMode == RecordingMode.SPECIFIC_CONTACTS || selectedMode == RecordingMode.UNKNOWN_AND_SPECIFIC) {
+            Spacer(modifier = Modifier.height(8.dp))
+            FilledTonalButton(
+                onClick = onSelectContactsClick,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = if (selectedContactsCount > 0) {
+                        "Selected Contacts ($selectedContactsCount)"
+                    } else {
+                        "Select Contacts"
+                    }
                 )
             }
         }

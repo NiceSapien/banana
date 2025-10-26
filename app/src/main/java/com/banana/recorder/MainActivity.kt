@@ -24,6 +24,7 @@ import com.banana.recorder.data.RecordingsRepository
 import com.banana.recorder.data.SettingsRepository
 import com.banana.recorder.model.Recording
 import com.banana.recorder.model.RecordingSettings
+import com.banana.recorder.ui.screen.ContactSelectionScreen
 import com.banana.recorder.ui.screen.OnboardingScreen
 import com.banana.recorder.ui.screen.RecordingsScreen
 import com.banana.recorder.ui.screen.SettingsScreen
@@ -119,6 +120,24 @@ class MainActivity : ComponentActivity() {
                         onSettingsChange = { newSettings ->
                             lifecycleScope.launch {
                                 settingsRepository.updateSettings(newSettings)
+                            }
+                        },
+                        onBackClick = {
+                            navController.popBackStack()
+                        },
+                        onSelectContactsClick = {
+                            navController.navigate("contacts")
+                        }
+                    )
+                }
+                composable("contacts") {
+                    ContactSelectionScreen(
+                        selectedContactIds = settings.selectedContactIds,
+                        onContactsSelected = { selectedIds ->
+                            lifecycleScope.launch {
+                                settingsRepository.updateSettings(
+                                    settings.copy(selectedContactIds = selectedIds)
+                                )
                             }
                         },
                         onBackClick = {
