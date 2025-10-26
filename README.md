@@ -55,12 +55,14 @@ Built with **Material 3 Expressive** design theme featuring:
 git clone https://github.com/NiceSapien/banana.git
 cd banana
 
-# Build the APK
+# Build the APK (requires internet access to download dependencies)
 ./gradlew assembleRelease
 
 # The APK will be generated at:
 # app/build/outputs/apk/release/app-release-unsigned.apk
 ```
+
+**Note**: Building requires internet access to download Android SDK components and dependencies from Google's Maven repository. The GitHub Actions workflow will automatically build and upload APKs on each push.
 
 ## 📱 Permissions Required
 
