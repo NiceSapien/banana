@@ -118,7 +118,7 @@ fun RecordingItem(
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = if (recording.isIncoming) Icons.Default.CallReceived else Icons.Default.CallMade,
+                        imageVector = if (recording.isIncoming) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
                         tint = if (recording.isIncoming) 
