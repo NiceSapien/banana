@@ -157,17 +157,19 @@ Banana is a privacy-focused, fully offline Android call recording app built with
 
 ### Build Configuration
 - **Gradle**: 7.6.3
-- **AGP**: 7.4.2
+- **AGP (Android Gradle Plugin)**: 7.4.2
 - **Kotlin**: 1.8.10
 - **Compose BOM**: 2023.10.01
 - **Material 3**: 1.2.0-beta01
+
+*Note: These versions are used in the current build configuration and are stable. Newer versions may be available at the time you're reading this documentation.*
 
 ### File Structure
 ```
 app/src/main/
 ├── AndroidManifest.xml
 ├── java/com/banana/recorder/
-│   ├── BananaApplication.kt          # Application class
+│   ├── BananaApplication.kt          # Application class + AutoDeleteWorker
 │   ├── MainActivity.kt               # Single activity
 │   ├── data/
 │   │   ├── RecordingsRepository.kt   # Recording file management
@@ -197,6 +199,8 @@ app/src/main/
     └── xml/
         └── file_paths.xml
 ```
+
+Note: The `AutoDeleteWorker` class is implemented as an inner class in `BananaApplication.kt` for simplicity.
 
 ## Known Limitations
 
