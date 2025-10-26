@@ -6,6 +6,7 @@ import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,6 +24,7 @@ import com.banana.recorder.data.RecordingsRepository
 import com.banana.recorder.data.SettingsRepository
 import com.banana.recorder.model.Recording
 import com.banana.recorder.model.RecordingSettings
+import com.banana.recorder.ui.screen.OnboardingScreen
 import com.banana.recorder.ui.screen.RecordingsScreen
 import com.banana.recorder.ui.screen.SettingsScreen
 import com.banana.recorder.ui.theme.BananaTheme
@@ -35,20 +37,31 @@ class MainActivity : ComponentActivity() {
     private val recordingsRepository by lazy { RecordingsRepository(this) }
     private val settingsRepository by lazy { SettingsRepository(this) }
     private var mediaPlayer: MediaPlayer? = null
+    private var permissionsGranted = mutableStateOf(false)
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val allGranted = permissions.values.all { it }
         if (allGranted) {
+            permissionsGranted.value = true
             loadRecordings()
+        } else {
+            // Some permissions denied - guide user to settings
+            if (shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)) {
+                // User denied but didn't check "Don't ask again"
+                // Can show explanation and request again
+            } else {
+                // User checked "Don't ask again" - guide to settings
+                openAppSettings()
+            }
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        requestPermissions()
+        permissionsGranted.value = PermissionUtils.hasAllPermissions(this)
 
         setContent {
             BananaTheme {
@@ -67,57 +80,73 @@ class MainActivity : ComponentActivity() {
         val navController = rememberNavController()
         var recordings by remember { mutableStateOf<List<Recording>>(emptyList()) }
         val settings by settingsRepository.settingsFlow.collectAsState(initial = RecordingSettings())
+        val hasPermissions by remember { permissionsGranted }
 
-        LaunchedEffect(Unit) {
-            recordings = recordingsRepository.getAllRecordings()
-        }
-
-        NavHost(navController = navController, startDestination = "recordings") {
-            composable("recordings") {
-                RecordingsScreen(
-                    recordings = recordings,
-                    onDeleteRecording = { recording ->
-                        lifecycleScope.launch {
-                            recordingsRepository.deleteRecording(recording)
-                            recordings = recordingsRepository.getAllRecordings()
-                        }
-                    },
-                    onPlayRecording = { recording ->
-                        playRecording(recording)
-                    },
-                    onSettingsClick = {
-                        navController.navigate("settings")
-                    }
-                )
-            }
-            composable("settings") {
-                SettingsScreen(
-                    settings = settings,
-                    onSettingsChange = { newSettings ->
-                        lifecycleScope.launch {
-                            settingsRepository.updateSettings(newSettings)
-                        }
-                    },
-                    onBackClick = {
-                        navController.popBackStack()
-                    }
-                )
-            }
-        }
-
-        // Auto-delete old recordings
-        LaunchedEffect(settings.autoDeleteEnabled, settings.autoDeleteDays) {
-            if (settings.autoDeleteEnabled) {
-                recordingsRepository.deleteOldRecordings(settings.autoDeleteDays)
+        LaunchedEffect(hasPermissions) {
+            if (hasPermissions) {
                 recordings = recordingsRepository.getAllRecordings()
+            }
+        }
+
+        if (!hasPermissions) {
+            OnboardingScreen(
+                onPermissionsRequest = {
+                    requestPermissions()
+                }
+            )
+        } else {
+            NavHost(navController = navController, startDestination = "recordings") {
+                composable("recordings") {
+                    RecordingsScreen(
+                        recordings = recordings,
+                        onDeleteRecording = { recording ->
+                            lifecycleScope.launch {
+                                recordingsRepository.deleteRecording(recording)
+                                recordings = recordingsRepository.getAllRecordings()
+                            }
+                        },
+                        onPlayRecording = { recording ->
+                            playRecording(recording)
+                        },
+                        onSettingsClick = {
+                            navController.navigate("settings")
+                        }
+                    )
+                }
+                composable("settings") {
+                    SettingsScreen(
+                        settings = settings,
+                        onSettingsChange = { newSettings ->
+                            lifecycleScope.launch {
+                                settingsRepository.updateSettings(newSettings)
+                            }
+                        },
+                        onBackClick = {
+                            navController.popBackStack()
+                        }
+                    )
+                }
+            }
+
+            // Auto-delete old recordings
+            LaunchedEffect(settings.autoDeleteEnabled, settings.autoDeleteDays) {
+                if (settings.autoDeleteEnabled) {
+                    recordingsRepository.deleteOldRecordings(settings.autoDeleteDays)
+                    recordings = recordingsRepository.getAllRecordings()
+                }
             }
         }
     }
 
     private fun requestPermissions() {
-        if (!PermissionUtils.hasAllPermissions(this)) {
-            permissionLauncher.launch(PermissionUtils.getRequiredPermissions())
+        permissionLauncher.launch(PermissionUtils.getRequiredPermissions())
+    }
+
+    private fun openAppSettings() {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", packageName, null)
         }
+        startActivity(intent)
     }
 
     private fun loadRecordings() {
