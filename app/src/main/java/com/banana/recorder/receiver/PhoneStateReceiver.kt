@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.telephony.TelephonyManager
+import android.widget.Toast
 import com.banana.recorder.data.SettingsRepository
 import com.banana.recorder.model.RecordingMode
 import com.banana.recorder.service.CallRecordingService
@@ -20,6 +21,8 @@ class PhoneStateReceiver : BroadcastReceiver() {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     override fun onReceive(context: Context, intent: Intent) {
+        Toast.makeText(context, "Call detected!", Toast.LENGTH_SHORT).show()
+        
         if (intent.action == TelephonyManager.ACTION_PHONE_STATE_CHANGED) {
             val state = intent.getStringExtra(TelephonyManager.EXTRA_STATE)
             val phoneNumber = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
@@ -27,6 +30,7 @@ class PhoneStateReceiver : BroadcastReceiver() {
             when (state) {
                 TelephonyManager.EXTRA_STATE_RINGING -> {
                     // Incoming call
+                    Toast.makeText(context, "Incoming call ringing", Toast.LENGTH_SHORT).show()
                     phoneNumber?.let {
                         scope.launch {
                             if (shouldRecord(context, it, true)) {
@@ -38,6 +42,7 @@ class PhoneStateReceiver : BroadcastReceiver() {
                 }
                 TelephonyManager.EXTRA_STATE_OFFHOOK -> {
                     // Call answered
+                    Toast.makeText(context, "Call answered/started", Toast.LENGTH_SHORT).show()
                     val number = phoneNumber ?: lastIncomingNumber
                     number?.let {
                         scope.launch {
@@ -50,11 +55,13 @@ class PhoneStateReceiver : BroadcastReceiver() {
                 }
                 TelephonyManager.EXTRA_STATE_IDLE -> {
                     // Call ended
+                    Toast.makeText(context, "Call ended", Toast.LENGTH_SHORT).show()
                     CallRecordingService.stopRecording(context)
                     lastIncomingNumber = null
                 }
             }
         } else if (intent.action == Intent.ACTION_NEW_OUTGOING_CALL) {
+            Toast.makeText(context, "Outgoing call", Toast.LENGTH_SHORT).show()
             val phoneNumber = intent.getStringExtra(Intent.EXTRA_PHONE_NUMBER)
             phoneNumber?.let {
                 scope.launch {

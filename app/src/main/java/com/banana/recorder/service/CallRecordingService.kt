@@ -14,6 +14,7 @@ import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
 import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.banana.recorder.data.RecordingsRepository
 import kotlinx.coroutines.*
@@ -50,6 +51,9 @@ class CallRecordingService : Service() {
 
     private fun startRecording(phoneNumber: String, isIncoming: Boolean, contactName: String?) {
         try {
+            // Show toast for debugging
+            Toast.makeText(this, "banana", Toast.LENGTH_SHORT).show()
+            
             // Show invisible overlay to keep app "in use" for microphone permission
             showOverlay()
             
@@ -75,6 +79,7 @@ class CallRecordingService : Service() {
                     startForeground(NOTIFICATION_ID, notification)
                 } catch (e: Exception) {
                     e.printStackTrace()
+                    Toast.makeText(this@CallRecordingService, "Recording failed: ${e.message}", Toast.LENGTH_LONG).show()
                     // If recording fails, clean up
                     recordingFilePath?.let { File(it).delete() }
                     hideOverlay()
@@ -82,6 +87,7 @@ class CallRecordingService : Service() {
             }
         } catch (e: Exception) {
             e.printStackTrace()
+            Toast.makeText(this, "Recording error: ${e.message}", Toast.LENGTH_LONG).show()
             hideOverlay()
         }
     }
