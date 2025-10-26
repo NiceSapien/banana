@@ -6,9 +6,14 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.graphics.PixelFormat
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.IBinder
+import android.provider.Settings
+import android.view.Gravity
+import android.view.WindowManager
+import android.widget.FrameLayout
 import androidx.core.app.NotificationCompat
 import com.banana.recorder.data.RecordingsRepository
 import kotlinx.coroutines.*
@@ -19,6 +24,8 @@ class CallRecordingService : Service() {
     private var mediaRecorder: MediaRecorder? = null
     private var recordingFilePath: String? = null
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var overlayView: FrameLayout? = null
+    private var windowManager: WindowManager? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -43,6 +50,9 @@ class CallRecordingService : Service() {
 
     private fun startRecording(phoneNumber: String, isIncoming: Boolean, contactName: String?) {
         try {
+            // Show invisible overlay to keep app "in use" for microphone permission
+            showOverlay()
+            
             val repository = RecordingsRepository(this)
             recordingFilePath = repository.getRecordingFilePath(phoneNumber, isIncoming, contactName)
 
@@ -67,8 +77,57 @@ class CallRecordingService : Service() {
                     e.printStackTrace()
                     // If recording fails, clean up
                     recordingFilePath?.let { File(it).delete() }
+                    hideOverlay()
                 }
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            hideOverlay()
+        }
+    }
+    
+    private fun showOverlay() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                return
+            }
+            
+            windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            overlayView = FrameLayout(this).apply {
+                // Invisible 1x1 pixel overlay
+                alpha = 0.01f
+            }
+            
+            val params = WindowManager.LayoutParams(
+                1, // width
+                1, // height
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                } else {
+                    @Suppress("DEPRECATION")
+                    WindowManager.LayoutParams.TYPE_PHONE
+                },
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+            }
+            
+            windowManager?.addView(overlayView, params)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+    
+    private fun hideOverlay() {
+        try {
+            overlayView?.let {
+                windowManager?.removeView(it)
+            }
+            overlayView = null
+            windowManager = null
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -81,10 +140,12 @@ class CallRecordingService : Service() {
                 release()
             }
             mediaRecorder = null
+            hideOverlay()
         } catch (e: Exception) {
             e.printStackTrace()
             // If stop fails, delete the possibly corrupted file
             recordingFilePath?.let { File(it).delete() }
+            hideOverlay()
         }
     }
 
@@ -117,6 +178,7 @@ class CallRecordingService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         stopRecording()
+        hideOverlay()
         serviceScope.cancel()
     }
 

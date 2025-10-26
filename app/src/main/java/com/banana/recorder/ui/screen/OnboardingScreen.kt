@@ -81,6 +81,12 @@ fun OnboardingScreen(
             description = "To show recording status in notifications"
         )
         
+        PermissionCard(
+            icon = Icons.Default.PlayArrow,
+            title = "Display Over Other Apps",
+            description = "To keep the app active during calls for recording (invisible overlay)"
+        )
+        
         Spacer(modifier = Modifier.weight(1f))
         
         Card(

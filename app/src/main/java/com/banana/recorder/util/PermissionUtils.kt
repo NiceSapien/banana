@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.Settings
 import androidx.core.content.ContextCompat
 
 object PermissionUtils {
@@ -33,8 +34,21 @@ object PermissionUtils {
             ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
         }
         
-        // For Android 11+, we don't require MANAGE_EXTERNAL_STORAGE
-        // We'll use app-specific storage instead
-        return regularPermissions
+        // Check overlay permission
+        val overlayPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(context)
+        } else {
+            true
+        }
+        
+        return regularPermissions && overlayPermission
+    }
+    
+    fun canDrawOverlays(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(context)
+        } else {
+            true
+        }
     }
 }

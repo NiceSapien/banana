@@ -150,7 +150,23 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestPermissions() {
+        // First request regular permissions
         permissionLauncher.launch(PermissionUtils.getRequiredPermissions())
+        
+        // Then request overlay permission if on Android M+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName")
+            )
+            startActivity(intent)
+        }
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        // Recheck permissions when returning from overlay permission screen
+        permissionsGranted.value = PermissionUtils.hasAllPermissions(this)
     }
 
     private fun openAppSettings() {
