@@ -3,13 +3,11 @@ package com.banana.recorder.ui.screen
 import android.content.Context
 import android.database.Cursor
 import android.provider.ContactsContract
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -118,8 +116,7 @@ fun ContactItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onToggle)
-            .padding(16.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
@@ -141,18 +138,15 @@ fun ContactItem(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        if (isSelected) {
-            Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = "Selected",
-                tint = MaterialTheme.colorScheme.primary
-            )
-        }
+        Switch(
+            checked = isSelected,
+            onCheckedChange = { onToggle() }
+        )
     }
 }
 
 private suspend fun loadContacts(context: Context): List<Contact> = withContext(Dispatchers.IO) {
-    val contacts = mutableListOf<Contact>()
+    val contactsMap = mutableMapOf<String, Contact>()
     val uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
     val projection = arrayOf(
         ContactsContract.CommonDataKinds.Phone.CONTACT_ID,
@@ -180,7 +174,10 @@ private suspend fun loadContacts(context: Context): List<Contact> = withContext(
                     val id = it.getString(idIndex)
                     val name = it.getString(nameIndex)
                     val number = it.getString(numberIndex)
-                    contacts.add(Contact(id, name, number))
+                    // Only add if we haven't seen this contact ID yet (removes duplicates)
+                    if (!contactsMap.containsKey(id)) {
+                        contactsMap[id] = Contact(id, name, number)
+                    }
                 }
             }
         }
@@ -190,5 +187,5 @@ private suspend fun loadContacts(context: Context): List<Contact> = withContext(
         cursor?.close()
     }
 
-    contacts
+    contactsMap.values.toList()
 }
