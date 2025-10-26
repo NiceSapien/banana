@@ -118,7 +118,7 @@ fun RecordingItem(
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = if (recording.isIncoming) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward,
+                        imageVector = Icons.Default.Phone,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
                         tint = if (recording.isIncoming) 
@@ -127,6 +127,15 @@ fun RecordingItem(
                             MaterialTheme.colorScheme.secondary
                     )
                     Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (recording.isIncoming) "Incoming" else "Outgoing",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (recording.isIncoming) 
+                            MaterialTheme.colorScheme.tertiary 
+                        else 
+                            MaterialTheme.colorScheme.secondary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault())
                             .format(Date(recording.timestamp)),
