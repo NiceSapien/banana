@@ -29,26 +29,41 @@ class PhoneStateReceiver : BroadcastReceiver() {
 
             when (state) {
                 TelephonyManager.EXTRA_STATE_RINGING -> {
-                    // Incoming call
+                    // Incoming call ringing
                     Toast.makeText(context, "Incoming call ringing", Toast.LENGTH_SHORT).show()
                     phoneNumber?.let {
-                        scope.launch {
-                            if (shouldRecord(context, it, true)) {
-                                // Store for when call is answered
-                                lastIncomingNumber = it
-                            }
-                        }
+                        // Store incoming number for when call is answered
+                        lastIncomingNumber = it
+                        isIncomingCall = true
                     }
                 }
                 TelephonyManager.EXTRA_STATE_OFFHOOK -> {
-                    // Call answered
+                    // Call answered/started (works for both incoming and outgoing)
                     Toast.makeText(context, "Call answered/started", Toast.LENGTH_SHORT).show()
-                    val number = phoneNumber ?: lastIncomingNumber
-                    number?.let {
+                    
+                    // Determine which number to use and if it's incoming
+                    val numberToRecord: String?
+                    val isIncoming: Boolean
+                    
+                    if (lastIncomingNumber != null) {
+                        // This is an incoming call being answered
+                        numberToRecord = lastIncomingNumber
+                        isIncoming = true
+                    } else if (lastOutgoingNumber != null) {
+                        // This is an outgoing call being answered
+                        numberToRecord = lastOutgoingNumber
+                        isIncoming = false
+                    } else {
+                        // Fallback - shouldn't happen
+                        numberToRecord = phoneNumber
+                        isIncoming = isIncomingCall
+                    }
+                    
+                    numberToRecord?.let { number ->
                         scope.launch {
-                            if (shouldRecord(context, it, true)) {
-                                val contactName = ContactUtils.getContactName(context, it)
-                                CallRecordingService.startRecording(context, it, true, contactName)
+                            if (shouldRecord(context, number, isIncoming)) {
+                                val contactName = ContactUtils.getContactName(context, number)
+                                CallRecordingService.startRecording(context, number, isIncoming, contactName)
                             }
                         }
                     }
@@ -57,19 +72,19 @@ class PhoneStateReceiver : BroadcastReceiver() {
                     // Call ended
                     Toast.makeText(context, "Call ended", Toast.LENGTH_SHORT).show()
                     CallRecordingService.stopRecording(context)
+                    // Reset all state
                     lastIncomingNumber = null
+                    lastOutgoingNumber = null
+                    isIncomingCall = true
                 }
             }
         } else if (intent.action == Intent.ACTION_NEW_OUTGOING_CALL) {
-            Toast.makeText(context, "Outgoing call", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Outgoing call dialing", Toast.LENGTH_SHORT).show()
             val phoneNumber = intent.getStringExtra(Intent.EXTRA_PHONE_NUMBER)
             phoneNumber?.let {
-                scope.launch {
-                    if (shouldRecord(context, it, false)) {
-                        val contactName = ContactUtils.getContactName(context, it)
-                        CallRecordingService.startRecording(context, it, false, contactName)
-                    }
-                }
+                // Store outgoing number for when call is answered (OFFHOOK state)
+                lastOutgoingNumber = it
+                isIncomingCall = false
             }
         }
     }
@@ -118,5 +133,7 @@ class PhoneStateReceiver : BroadcastReceiver() {
 
     companion object {
         private var lastIncomingNumber: String? = null
+        private var lastOutgoingNumber: String? = null
+        private var isIncomingCall: Boolean = true
     }
 }
