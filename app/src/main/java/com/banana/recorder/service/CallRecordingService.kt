@@ -13,37 +13,23 @@ import android.os.IBinder
 import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.banana.recorder.data.RecordingsRepository
-import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Button
-import android.view.View
 import kotlinx.coroutines.*
 import java.io.File
 
-class CallRecordingService : Service(), LifecycleOwner, SavedStateRegistryOwner {
+class CallRecordingService : Service() {
 
     private var mediaRecorder: MediaRecorder? = null
     private var recordingFilePath: String? = null
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-    private var overlayView: ComposeView? = null
+    private var overlayView: FrameLayout? = null
     private var windowManager: WindowManager? = null
-    
-    private val lifecycleRegistry = LifecycleRegistry(this)
-    private val savedStateRegistryController = SavedStateRegistryController.create(this)
-    
-    override val lifecycle: Lifecycle get() = lifecycleRegistry
-    override val savedStateRegistry: SavedStateRegistry get() = savedStateRegistryController.savedStateRegistry
-    
-    private var isPaused = mutableStateOf(false)
-    private var recordingDuration = mutableStateOf(0)
 
     override fun onCreate() {
         super.onCreate()
-        savedStateRegistryController.performRestore(null)
-        lifecycleRegistry.currentState = Lifecycle.State.CREATED
         createNotificationChannel()
     }
 
@@ -68,8 +54,8 @@ class CallRecordingService : Service(), LifecycleOwner, SavedStateRegistryOwner 
             // Show toast for debugging
             Toast.makeText(this, "banana", Toast.LENGTH_SHORT).show()
             
-            // Show visible overlay with controls
-            showOverlay(phoneNumber, isIncoming, contactName)
+            // Show invisible overlay to keep app "in use" for microphone permission
+            showOverlay()
             
             val repository = RecordingsRepository(this)
             recordingFilePath = repository.getRecordingFilePath(phoneNumber, isIncoming, contactName)
@@ -89,9 +75,6 @@ class CallRecordingService : Service(), LifecycleOwner, SavedStateRegistryOwner 
                     prepare()
                     start()
                     
-                    // Start duration counter
-                    startDurationCounter()
-                    
                     val notification = createNotification("Recording call from $phoneNumber")
                     startForeground(NOTIFICATION_ID, notification)
                 } catch (e: Exception) {
@@ -109,87 +92,21 @@ class CallRecordingService : Service(), LifecycleOwner, SavedStateRegistryOwner 
         }
     }
     
-    private var durationJob: Job? = null
-    
-    private fun startDurationCounter() {
-        durationJob?.cancel()
-        recordingDuration.value = 0
-        durationJob = serviceScope.launch {
-            while (isActive && !isPaused.value) {
-                delay(1000)
-                recordingDuration.value++
-            }
-        }
-    }
-    
-    private fun pauseRecording() {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                mediaRecorder?.pause()
-                isPaused.value = true
-                durationJob?.cancel()
-                Toast.makeText(this, "Recording paused", Toast.LENGTH_SHORT).show()
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(this, "Pause failed: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-    
-    private fun resumeRecording() {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                mediaRecorder?.resume()
-                isPaused.value = false
-                startDurationCounter()
-                Toast.makeText(this, "Recording resumed", Toast.LENGTH_SHORT).show()
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(this, "Resume failed: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-    
-    private fun showOverlay(phoneNumber: String, isIncoming: Boolean, contactName: String?) {
+    private fun showOverlay() {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
                 return
             }
             
-            lifecycleRegistry.currentState = Lifecycle.State.STARTED
-            
             windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-            overlayView = ComposeView(this).apply {
-                setViewTreeLifecycleOwner(this@CallRecordingService)
-                setViewTreeSavedStateRegistryOwner(this@CallRecordingService)
-                
-                setContent {
-                    BananaRecorderTheme {
-                        RecordingOverlayUI(
-                            phoneNumber = phoneNumber,
-                            isIncoming = isIncoming,
-                            contactName = contactName,
-                            isPaused = isPaused.value,
-                            duration = recordingDuration.value,
-                            onPause = {
-                                if (isPaused.value) {
-                                    resumeRecording()
-                                } else {
-                                    pauseRecording()
-                                }
-                            },
-                            onStop = {
-                                stopRecording()
-                                stopSelf()
-                            }
-                        )
-                    }
-                }
+            overlayView = FrameLayout(this).apply {
+                // Invisible 1x1 pixel overlay
+                alpha = 0.01f
             }
             
             val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
+                1, // width
+                1, // height
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 } else {
@@ -197,18 +114,16 @@ class CallRecordingService : Service(), LifecycleOwner, SavedStateRegistryOwner 
                     WindowManager.LayoutParams.TYPE_PHONE
                 },
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                         WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT
             ).apply {
-                gravity = Gravity.TOP or Gravity.END
-                x = 16
-                y = 100
+                gravity = Gravity.TOP or Gravity.START
             }
             
             windowManager?.addView(overlayView, params)
         } catch (e: Exception) {
             e.printStackTrace()
-            Toast.makeText(this, "Overlay error: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -226,7 +141,6 @@ class CallRecordingService : Service(), LifecycleOwner, SavedStateRegistryOwner 
 
     private fun stopRecording() {
         try {
-            durationJob?.cancel()
             mediaRecorder?.apply {
                 stop()
                 release()
@@ -272,117 +186,6 @@ class CallRecordingService : Service(), LifecycleOwner, SavedStateRegistryOwner 
         stopRecording()
         hideOverlay()
         serviceScope.cancel()
-        lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
-    }
-    
-    @Composable
-    private fun RecordingOverlayUI(
-        phoneNumber: String,
-        isIncoming: Boolean,
-        contactName: String?,
-        isPaused: Boolean,
-        duration: Int,
-        onPause: () -> Unit,
-        onStop: () -> Unit
-    ) {
-        Surface(
-            modifier = Modifier
-                .width(280.dp)
-                .padding(8.dp),
-            shape = RoundedCornerShape(16.dp),
-            shadowElevation = 8.dp,
-            tonalElevation = 4.dp
-        ) {
-            Column(
-                modifier = Modifier
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Header
-                Text(
-                    text = "🍌 Recording",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                
-                // Call info
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = contactName ?: phoneNumber,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = if (isIncoming) "Incoming" else "Outgoing",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                
-                // Duration
-                Text(
-                    text = formatDuration(duration),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = if (isPaused) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                )
-                
-                // Status
-                if (isPaused) {
-                    Text(
-                        text = "PAUSED",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-                
-                // Buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    // Pause/Resume button (only on Android N+)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        FilledTonalIconButton(
-                            onClick = onPause,
-                            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                containerColor = if (isPaused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer
-                            )
-                        ) {
-                            Icon(
-                                imageVector = if (isPaused) Icons.Default.Pause else Icons.Default.Pause,
-                                contentDescription = if (isPaused) "Resume" else "Pause",
-                                tint = if (isPaused) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                        }
-                    }
-                    
-                    // Stop button
-                    FilledIconButton(
-                        onClick = onStop,
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.error
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Stop,
-                            contentDescription = "Stop",
-                            tint = MaterialTheme.colorScheme.onError
-                        )
-                    }
-                }
-            }
-        }
-    }
-    
-    private fun formatDuration(seconds: Int): String {
-        val mins = seconds / 60
-        val secs = seconds % 60
-        return String.format("%02d:%02d", mins, secs)
     }
 
     companion object {
